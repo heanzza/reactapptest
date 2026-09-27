@@ -1,1 +1,6 @@
 command: ['npm', 'run', 'start']
+env:
+  # NYC taxi analytics runs on this SQL warehouse. Queries are OBO
+  # (config/queries/*.obo.sql) so they execute as the signed-in user.
+  - name: DATABRICKS_WAREHOUSE_ID
+    value: '95afb2959a8c29f1'
