@@ -1,180 +1,62 @@
-# app
+# NYC タクシー分析ダッシュボード
 
-A Databricks App powered by [AppKit](https://developers.databricks.com/docs/appkit/v0/), featuring React, TypeScript, and Tailwind CSS.
+Databricks [AppKit](https://developers.databricks.com/docs/appkit/v0/)（React + TypeScript + Tailwind CSS）で構築した、NYC イエローキャブの走行データ（`samples.nyctaxi.trips`）を可視化する分析ダッシュボードです。
 
-**Enabled plugins:**
-- **Server** -- Express HTTP server with static file serving and Vite dev mode
+## 画面
 
-## Prerequisites
+- **KPI**: 総トリップ数 / 平均運賃 / 総運賃 / 平均距離 / 平均所要時間
+- **日次トリップ数**（折れ線）/ **時間帯別トリップ数**（棒）/ **運賃の分布**（棒）
+- **人気ルート**（乗車→降車 ZIP コード トップ10）
+- **乗車日の範囲フィルタ**で全グラフ・KPI が連動更新
 
-- Node.js v22+ and npm
-- Databricks CLI (for deployment)
-- Access to a Databricks workspace
+SQL クエリは `config/queries/*.obo.sql` に定義され、ログインユーザー権限（OBO）で SQL ウェアハウス上で実行されます。
 
-## Databricks Authentication
+## 技術スタック
 
-### Local Development
+- **フロントエンド**: React 19, TypeScript, Vite, Tailwind CSS, React Router
+- **チャート**: Apache ECharts（自前の軽量ラッパー `client/src/components/charts/EChart.tsx`）
+- **バックエンド**: Node.js, Express（AppKit `server()` + `analytics()` プラグイン）
+- **データ**: Databricks SQL ウェアハウス経由の Unity Catalog テーブル
 
-For local development, configure your environment variables by creating a `.env` file:
+## プロジェクト構成
 
-```bash
-cp .env.example .env
+```
+config/queries/*.obo.sql        # SQL クエリ（OBO 実行）
+client/src/
+├── App.tsx                     # ルーティング
+├── pages/DashboardPage.tsx     # ダッシュボード本体
+├── components/
+│   ├── layout/AppHeader.tsx
+│   ├── dashboard/              # KPI・各チャート・テーブル・フィルタ
+│   └── charts/                 # ECharts ラッパー / オプション / 状態表示
+└── lib/                        # formatters・constants
+server/server.ts                # バックエンドのエントリポイント
+app.yaml                        # アプリ設定（SQL ウェアハウスのバインド）
 ```
 
-Edit `.env` and set the environment variables you need:
-
-```env
-DATABRICKS_HOST=https://your-workspace.cloud.databricks.com
-DATABRICKS_APP_PORT=8000
-# ... other environment variables, depending on the plugins you use
-```
-
-### CLI Authentication
-
-The Databricks CLI requires authentication to deploy and manage apps. Configure authentication using one of these methods:
-
-#### OAuth U2M
-
-Interactive browser-based authentication with short-lived tokens:
-
-```bash
-databricks auth login --host https://your-workspace.cloud.databricks.com
-```
-
-This will open your browser to complete authentication. The CLI saves credentials to `~/.databrickscfg`.
-
-#### Configuration Profiles
-
-Use multiple profiles for different workspaces:
-
-```ini
-[DEFAULT]
-host = https://dev-workspace.cloud.databricks.com
-
-[production]
-host = https://prod-workspace.cloud.databricks.com
-client_id = prod-client-id
-client_secret = prod-client-secret
-```
-
-Deploy using a specific profile:
-
-```bash
-databricks bundle deploy --profile production
-```
-
-**Note:** Personal Access Tokens (PATs) are legacy authentication. OAuth is strongly recommended for better security.
-
-## Getting Started
-
-### Install Dependencies
+## 開発
 
 ```bash
 npm install
+npm run dev        # ホットリロード付き開発サーバー
+npm run typecheck  # 型チェック
+npm run lint       # Lint
+npm run build      # 本番ビルド
 ```
 
-### Development
+### 必要な環境変数
 
-Run the app in development mode with hot reload:
+`analytics()` プラグインが SQL ウェアハウスへ接続するために `DATABRICKS_WAREHOUSE_ID` が必要です（`app.yaml` で設定済み。ローカル開発では `.env` に設定）。
 
-```bash
-npm run dev
+```env
+DATABRICKS_HOST=https://<your-workspace>.cloud.databricks.com
+DATABRICKS_WAREHOUSE_ID=<sql-warehouse-id>
 ```
 
-The app will be available at the URL shown in the console output.
+## デプロイ
 
-### Build
-
-Build both client and server for production:
-
-```bash
-npm run build
-```
-
-This creates:
-
-- `dist/server.js` - Compiled server bundle
-- `client/dist/` - Bundled client assets
-
-### Production
-
-Run the production build:
-
-```bash
-npm start
-```
-
-## Code Quality
-
-There are a few commands to help you with code quality:
-
-```bash
-# Type checking
-npm run typecheck
-
-# Linting
-npm run lint
-npm run lint:fix
-
-# Formatting
-npm run format
-npm run format:fix
-```
-
-## Deployment with Databricks Asset Bundles
-
-### 1. Configure Bundle
-
-Update `databricks.yml` with your workspace settings:
-
-```yaml
-targets:
-  default:
-    workspace:
-      host: https://your-workspace.cloud.databricks.com
-```
-
-Make sure to replace all placeholder values in `databricks.yml` with your actual resource IDs.
-
-### 2. Deploy
-
-Deploy and start the app with a single command:
+Databricks Apps 上で動作します（サーバー + SQL ウェアハウスが必要なため、静的ホスティングでは動作しません）。
 
 ```bash
 databricks apps deploy
 ```
-
-`databricks apps deploy` validates the project, deploys it, starts the app, and prints its URL.
-
-### Deploy to Production
-
-1. Configure the production target in `databricks.yml`
-2. Deploy to production:
-
-```bash
-databricks apps deploy -t prod
-```
-
-> **Restarting a stopped app:** apps stop after a period of inactivity. To start one again without redeploying, run `databricks apps start <APP_NAME>`.
-
-## Project Structure
-
-```
-* client/          # React frontend
-  * src/           # Source code
-  * public/        # Static assets
-* server/          # Express backend
-  * server.ts      # Server entry point
-  * routes/        # Routes
-* shared/          # Shared types
-* databricks.yml   # Bundle configuration
-* app.yaml         # App configuration
-* .env.example     # Environment variables example
-```
-
-## Tech Stack
-
-- **Backend**: Node.js, Express
-- **Frontend**: React.js, TypeScript, Vite, Tailwind CSS, React Router
-- **UI Components**: Radix UI, shadcn/ui
-- **Databricks**: AppKit SDK
